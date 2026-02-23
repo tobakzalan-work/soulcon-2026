@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
@@ -10,8 +10,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/font/lucide.min.css" rel="stylesheet">
     <style>
-        body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+        body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .lucide { vertical-align: middle; }
+        /* Mobil optimalizálás: ne lehessen véletlenül kijelölni a szöveget kattintáskor */
+        button { user-select: none; }
     </style>
 </head>
 <body class="bg-slate-50">
@@ -19,11 +21,6 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-
-        // Lucide Icon Component wrapper for simple HTML usage
-        const Icon = ({ name, className = "w-4 h-4" }) => (
-            <i data-lucide={name} className={`${className} inline-block`}></i>
-        );
 
         const App = () => {
             const [activeWeek, setActiveWeek] = useState(0);
@@ -48,24 +45,71 @@
                 { id: 'net', label: '22:00 után nincs net', icon: 'smartphone', cat: 'Digitális' },
             ];
 
+            // Betöltés indításkor
             useEffect(() => {
                 const saved = localStorage.getItem('soulcon_data_2026');
-                if (saved) setData(JSON.parse(saved));
+                if (saved) {
+                    try {
+                        setData(JSON.parse(saved));
+                    } catch(e) {
+                        console.error("Hiba az adatok betöltésekor", e);
+                    }
+                }
                 setLoading(false);
-                // Initialize icons
-                if (window.lucide) window.lucide.createIcons();
+                setTimeout(() => { if (window.lucide) window.lucide.createIcons(); }, 100);
             }, []);
 
+            // Mentés változáskor
             useEffect(() => {
-                if (!loading) localStorage.setItem('soulcon_data_2026', JSON.stringify(data));
+                if (!loading) {
+                    localStorage.setItem('soulcon_data_2026', JSON.stringify(data));
+                }
                 if (window.lucide) window.lucide.createIcons();
             }, [data, loading, activeWeek]);
 
             const toggleTask = (dateKey, taskId) => {
                 setData(prev => ({
                     ...prev,
-                    [dateKey]: { ...prev[dateKey], [taskId]: !prev[dateKey]?.[taskId] }
+                    [dateKey]: { 
+                        ...(prev[dateKey] || {}), 
+                        [taskId]: !prev[dateKey]?.[taskId] 
+                    }
                 }));
+            };
+
+            // EXPORT funkció
+            const handleExport = () => {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `soulcon_tracker_mentes_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // IMPORT funkció
+            const handleImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        if (confirm('Biztosan be akarod tölteni a fájlt? A jelenlegi pipák felülíródnak!')) {
+                            setData(json);
+                            alert('Adatok sikeresen betöltve!');
+                        }
+                    } catch (err) {
+                        alert('Hiba: Érvénytelen fájlformátum!');
+                    }
+                };
+                reader.readAsText(file);
+                // Reset input so the same file can be selected again
+                event.target.value = '';
             };
 
             const getDaysInWeek = (weekIdx) => {
@@ -86,66 +130,104 @@
                 return Math.round((completed / tasks.length) * 100);
             };
 
-            if (loading) return <div className="p-8 text-center text-slate-500">Betöltés...</div>;
+            if (loading) return <div className="p-10 text-center text-slate-500 font-medium">Adatok szinkronizálása...</div>;
 
             const currentWeekDays = getDaysInWeek(activeWeek);
 
             return (
-                <div className="min-h-screen pb-20">
-                    <header className="bg-slate-800 text-white p-4 sticky top-0 z-10 shadow-md">
+                <div className="min-h-screen pb-24">
+                    {/* Header */}
+                    <header className="bg-slate-900 text-white p-4 sticky top-0 z-20 shadow-lg border-b border-slate-700">
                         <div className="flex justify-between items-center max-w-md mx-auto">
-                            <button onClick={() => setActiveWeek(Math.max(0, activeWeek - 1))} className="p-2 disabled:opacity-30" disabled={activeWeek === 0}>
-                                <i data-lucide="chevron-left"></i>
+                            <button onClick={() => setActiveWeek(Math.max(0, activeWeek - 1))} className="p-2 active:scale-95 transition-transform disabled:opacity-20" disabled={activeWeek === 0}>
+                                <i data-lucide="chevron-left" className="w-6 h-6"></i>
                             </button>
                             <div className="text-center">
-                                <h1 className="font-bold text-lg uppercase tracking-wider text-white">Soulcon Tracker</h1>
-                                <p className="text-xs opacity-70">{activeWeek + 1}. hét</p>
+                                <h1 className="font-black text-xl tracking-tighter uppercase italic text-blue-400">Soulcon 2026</h1>
+                                <p className="text-[10px] font-bold opacity-60 uppercase tracking-[0.2em]">{activeWeek + 1}. HÉT / 6</p>
                             </div>
-                            <button onClick={() => setActiveWeek(Math.min(5, activeWeek + 1))} className="p-2 disabled:opacity-30" disabled={activeWeek === 5}>
-                                <i data-lucide="chevron-right"></i>
+                            <button onClick={() => setActiveWeek(Math.min(5, activeWeek + 1))} className="p-2 active:scale-95 transition-transform disabled:opacity-20" disabled={activeWeek === 5}>
+                                <i data-lucide="chevron-right" className="w-6 h-6"></i>
                             </button>
                         </div>
                     </header>
 
                     <main className="max-w-md mx-auto p-4 space-y-6">
+                        {/* Adatkezelő gombok */}
+                        <div className="flex gap-3 justify-center bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+                            <button 
+                                onClick={handleExport}
+                                className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-xl text-xs font-bold transition-colors"
+                            >
+                                <i data-lucide="download" className="w-4 h-4"></i> MENTÉS
+                            </button>
+                            <label className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer text-center">
+                                <i data-lucide="upload" className="w-4 h-4"></i> BETÖLTÉS
+                                <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                            </label>
+                        </div>
+
                         {currentWeekDays.map(date => {
                             const dateKey = formatDate(date);
                             const completion = getCompletionRate(dateKey);
+                            const isToday = new Date().toDateString() === date.toDateString();
+
                             return (
-                                <div key={dateKey} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                                    <div className="bg-slate-50 p-3 flex justify-between items-center border-b border-slate-200">
-                                        <div className="flex items-center gap-2">
-                                            <i data-lucide="calendar" className="w-4 h-4 text-slate-500"></i>
-                                            <span className="font-bold text-slate-700">
-                                                {date.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric', weekday: 'short' })}
-                                            </span>
+                                <div key={dateKey} className={`bg-white rounded-3xl shadow-sm border ${isToday ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-200'} overflow-hidden transition-all`}>
+                                    <div className={`p-4 flex justify-between items-center ${isToday ? 'bg-blue-50' : 'bg-slate-50'} border-b border-slate-100`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${isToday ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-200 text-slate-600'}`}>
+                                                {date.getDate()}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-800 leading-none">
+                                                    {date.toLocaleDateString('hu-HU', { weekday: 'long' }).toUpperCase()}
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                                    {date.toLocaleDateString('hu-HU', { month: 'long' })}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className={`text-xs font-bold px-2 py-1 rounded-full ${completion === 100 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
+                                        <div className={`text-[10px] font-black px-2.5 py-1 rounded-full border-2 ${completion === 100 ? 'bg-green-500 border-green-500 text-white' : 'border-slate-200 text-slate-500'}`}>
                                             {completion}%
                                         </div>
                                     </div>
-                                    <div className="p-2 grid grid-cols-1 gap-1">
-                                        {tasks.map(task => (
-                                            <button key={task.id} onClick={() => toggleTask(dateKey, task.id)} className={`flex items-center justify-between p-3 rounded-xl transition-all border ${data[dateKey]?.[task.id] ? 'bg-blue-50 text-blue-800 border-blue-100' : 'bg-white text-slate-600 border-transparent hover:bg-slate-50'}`}>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={data[dateKey]?.[task.id] ? 'text-blue-600' : 'text-slate-400'}>
-                                                        <i data-lucide={task.icon} className="w-4 h-4"></i>
-                                                    </span>
-                                                    <span className="text-sm font-medium">{task.label}</span>
-                                                </div>
-                                                {data[dateKey]?.[task.id] ? <i data-lucide="check-circle-2" className="w-5 h-5 text-blue-600"></i> : <i data-lucide="circle" className="w-5 h-5 text-slate-300"></i>}
-                                            </button>
-                                        ))}
+
+                                    <div className="p-3 space-y-1">
+                                        {tasks.map(task => {
+                                            const isDone = data[dateKey]?.[task.id];
+                                            return (
+                                                <button 
+                                                    key={task.id} 
+                                                    onClick={() => toggleTask(dateKey, task.id)} 
+                                                    className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all border-2 ${isDone ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-transparent text-slate-600 hover:bg-slate-50'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDone ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
+                                                            <i data-lucide={task.icon} className="w-4 h-4 text-inherit"></i>
+                                                        </div>
+                                                        <span className={`text-sm font-bold ${isDone ? 'text-white' : 'text-slate-700'}`}>{task.label}</span>
+                                                    </div>
+                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isDone ? 'bg-white border-white' : 'border-slate-200'}`}>
+                                                        {isDone && <i data-lucide="check" className="w-4 h-4 text-blue-600"></i>}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                    <div className="h-1.5 w-full bg-slate-100">
-                                        <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${completion}%` }}></div>
+                                    
+                                    <div className="h-2 w-full bg-slate-100">
+                                        <div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${completion}%` }}></div>
                                     </div>
                                 </div>
                             );
                         })}
                     </main>
-                    <footer className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">
-                        Soulcon 2026 • Feb 23 — Ápr 5
+
+                    <footer className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">
+                            Napi fegyelem • Lelki erő • Soulcon 2026
+                        </p>
                     </footer>
                 </div>
             );
