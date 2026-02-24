@@ -10,25 +10,26 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/font/lucide.min.css" rel="stylesheet">
     <style>
-        body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
         .lucide { vertical-align: middle; }
-        /* Mobil optimalizálás: ne lehessen véletlenül kijelölni a szöveget kattintáskor */
         button { user-select: none; }
+        .today-card { border-color: #2563eb !important; ring: 4px rgba(37, 99, 235, 0.1); }
     </style>
 </head>
 <body class="bg-slate-50">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         const App = () => {
             const [activeWeek, setActiveWeek] = useState(0);
             const [data, setData] = useState({});
             const [loading, setLoading] = useState(true);
+            const todayRef = useRef(null);
 
-            const startDate = new Date(2026, 1, 23); 
-            const endDate = new Date(2026, 3, 5);   
+            const startDate = new Date(2026, 1, 23); // Február 23
+            const endDate = new Date(2026, 3, 5);   // Április 5
 
             const tasks = [
                 { id: 'mi_atyank', label: 'Mi Atyánk', icon: 'cross', cat: 'Lelki' },
@@ -45,70 +46,69 @@
                 { id: 'net', label: '22:00 után nincs net', icon: 'smartphone', cat: 'Digitális' },
             ];
 
-            // Betöltés indításkor
+            // Betöltés és Automatikus hétválasztás
             useEffect(() => {
                 const saved = localStorage.getItem('soulcon_data_2026');
                 if (saved) {
-                    try {
-                        setData(JSON.parse(saved));
-                    } catch(e) {
-                        console.error("Hiba az adatok betöltésekor", e);
-                    }
+                    try { setData(JSON.parse(saved)); } catch(e) { console.error(e); }
                 }
+
+                // Aktuális hét kiszámítása
+                const now = new Date();
+                const diffTime = now - startDate;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays >= 0 && diffDays < 42) {
+                    const currentWeek = Math.floor(diffDays / 7);
+                    setActiveWeek(currentWeek);
+                } else if (diffDays >= 42) {
+                    setActiveWeek(5); // Utolsó hét, ha már vége a programnak
+                }
+
                 setLoading(false);
-                setTimeout(() => { if (window.lucide) window.lucide.createIcons(); }, 100);
+                setTimeout(() => { 
+                    if (window.lucide) window.lucide.createIcons(); 
+                    // Görgetés a mai naphoz, ha látható
+                    if (todayRef.current) {
+                        todayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 200);
             }, []);
 
-            // Mentés változáskor
             useEffect(() => {
-                if (!loading) {
-                    localStorage.setItem('soulcon_data_2026', JSON.stringify(data));
-                }
+                if (!loading) localStorage.setItem('soulcon_data_2026', JSON.stringify(data));
                 if (window.lucide) window.lucide.createIcons();
             }, [data, loading, activeWeek]);
 
             const toggleTask = (dateKey, taskId) => {
                 setData(prev => ({
                     ...prev,
-                    [dateKey]: { 
-                        ...(prev[dateKey] || {}), 
-                        [taskId]: !prev[dateKey]?.[taskId] 
-                    }
+                    [dateKey]: { ...(prev[dateKey] || {}), [taskId]: !prev[dateKey]?.[taskId] }
                 }));
             };
 
-            // EXPORT funkció
             const handleExport = () => {
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `soulcon_tracker_mentes_${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
+                a.download = `soulcon_mentes_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
             };
 
-            // IMPORT funkció
             const handleImport = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
-
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const json = JSON.parse(e.target.result);
-                        if (confirm('Biztosan be akarod tölteni a fájlt? A jelenlegi pipák felülíródnak!')) {
+                        if (confirm('Biztosan be akarod tölteni? A jelenlegi adatok felülíródnak!')) {
                             setData(json);
-                            alert('Adatok sikeresen betöltve!');
                         }
-                    } catch (err) {
-                        alert('Hiba: Érvénytelen fájlformátum!');
-                    }
+                    } catch (err) { alert('Hiba a beolvasáskor!'); }
                 };
                 reader.readAsText(file);
-                // Reset input so the same file can be selected again
                 event.target.value = '';
             };
 
@@ -124,44 +124,34 @@
 
             const formatDate = (date) => date.toISOString().split('T')[0];
 
-            const getCompletionRate = (dateKey) => {
-                const dayData = data[dateKey] || {};
-                const completed = tasks.filter(t => dayData[t.id]).length;
-                return Math.round((completed / tasks.length) * 100);
-            };
-
-            if (loading) return <div className="p-10 text-center text-slate-500 font-medium">Adatok szinkronizálása...</div>;
+            if (loading) return <div className="p-10 text-center text-slate-500 font-medium italic">Betöltés...</div>;
 
             const currentWeekDays = getDaysInWeek(activeWeek);
+            const todayStr = new Date().toDateString();
 
             return (
                 <div className="min-h-screen pb-24">
-                    {/* Header */}
                     <header className="bg-slate-900 text-white p-4 sticky top-0 z-20 shadow-lg border-b border-slate-700">
                         <div className="flex justify-between items-center max-w-md mx-auto">
-                            <button onClick={() => setActiveWeek(Math.max(0, activeWeek - 1))} className="p-2 active:scale-95 transition-transform disabled:opacity-20" disabled={activeWeek === 0}>
+                            <button onClick={() => setActiveWeek(Math.max(0, activeWeek - 1))} className="p-2 disabled:opacity-20" disabled={activeWeek === 0}>
                                 <i data-lucide="chevron-left" className="w-6 h-6"></i>
                             </button>
                             <div className="text-center">
                                 <h1 className="font-black text-xl tracking-tighter uppercase italic text-blue-400">Soulcon 2026</h1>
                                 <p className="text-[10px] font-bold opacity-60 uppercase tracking-[0.2em]">{activeWeek + 1}. HÉT / 6</p>
                             </div>
-                            <button onClick={() => setActiveWeek(Math.min(5, activeWeek + 1))} className="p-2 active:scale-95 transition-transform disabled:opacity-20" disabled={activeWeek === 5}>
+                            <button onClick={() => setActiveWeek(Math.min(5, activeWeek + 1))} className="p-2 disabled:opacity-20" disabled={activeWeek === 5}>
                                 <i data-lucide="chevron-right" className="w-6 h-6"></i>
                             </button>
                         </div>
                     </header>
 
                     <main className="max-w-md mx-auto p-4 space-y-6">
-                        {/* Adatkezelő gombok */}
                         <div className="flex gap-3 justify-center bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
-                            <button 
-                                onClick={handleExport}
-                                className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-xl text-xs font-bold transition-colors"
-                            >
+                            <button onClick={handleExport} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 py-2 px-4 rounded-xl text-[10px] font-bold text-slate-700">
                                 <i data-lucide="download" className="w-4 h-4"></i> MENTÉS
                             </button>
-                            <label className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer text-center">
+                            <label className="flex-1 flex items-center justify-center gap-2 bg-slate-100 py-2 px-4 rounded-xl text-[10px] font-bold text-slate-700 cursor-pointer">
                                 <i data-lucide="upload" className="w-4 h-4"></i> BETÖLTÉS
                                 <input type="file" accept=".json" onChange={handleImport} className="hidden" />
                             </label>
@@ -169,19 +159,26 @@
 
                         {currentWeekDays.map(date => {
                             const dateKey = formatDate(date);
-                            const completion = getCompletionRate(dateKey);
-                            const isToday = new Date().toDateString() === date.toDateString();
+                            const isToday = todayStr === date.toDateString();
+                            const dayData = data[dateKey] || {};
+                            const completed = tasks.filter(t => dayData[t.id]).length;
+                            const completion = Math.round((completed / tasks.length) * 100);
 
                             return (
-                                <div key={dateKey} className={`bg-white rounded-3xl shadow-sm border ${isToday ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-200'} overflow-hidden transition-all`}>
-                                    <div className={`p-4 flex justify-between items-center ${isToday ? 'bg-blue-50' : 'bg-slate-50'} border-b border-slate-100`}>
+                                <div 
+                                    key={dateKey} 
+                                    ref={isToday ? todayRef : null}
+                                    className={`bg-white rounded-3xl shadow-sm border transition-all ${isToday ? 'border-blue-500 ring-4 ring-blue-500/10' : 'border-slate-200'}`}
+                                >
+                                    <div className={`p-4 flex justify-between items-center border-b border-slate-100 ${isToday ? 'bg-blue-50' : 'bg-slate-50'}`}>
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${isToday ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-200 text-slate-600'}`}>
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${isToday ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-600'}`}>
                                                 {date.getDate()}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-slate-800 leading-none">
+                                                <p className="font-bold text-slate-800 leading-none flex items-center gap-2">
                                                     {date.toLocaleDateString('hu-HU', { weekday: 'long' }).toUpperCase()}
+                                                    {isToday && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-md">MA</span>}
                                                 </p>
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
                                                     {date.toLocaleDateString('hu-HU', { month: 'long' })}
@@ -195,7 +192,7 @@
 
                                     <div className="p-3 space-y-1">
                                         {tasks.map(task => {
-                                            const isDone = data[dateKey]?.[task.id];
+                                            const isDone = dayData[task.id];
                                             return (
                                                 <button 
                                                     key={task.id} 
@@ -208,26 +205,21 @@
                                                         </div>
                                                         <span className={`text-sm font-bold ${isDone ? 'text-white' : 'text-slate-700'}`}>{task.label}</span>
                                                     </div>
-                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isDone ? 'bg-white border-white' : 'border-slate-200'}`}>
+                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isDone ? 'bg-white border-white' : 'border-slate-200'}`}>
                                                         {isDone && <i data-lucide="check" className="w-4 h-4 text-blue-600"></i>}
                                                     </div>
                                                 </button>
                                             );
                                         })}
                                     </div>
-                                    
-                                    <div className="h-2 w-full bg-slate-100">
-                                        <div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${completion}%` }}></div>
-                                    </div>
+                                    <div className="h-2 w-full bg-slate-100"><div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${completion}%` }}></div></div>
                                 </div>
                             );
                         })}
                     </main>
 
                     <footer className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 text-center">
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">
-                            Napi fegyelem • Lelki erő • Soulcon 2026
-                        </p>
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">SOULCON 2026 • NAPI FEGYELEM</p>
                     </footer>
                 </div>
             );
