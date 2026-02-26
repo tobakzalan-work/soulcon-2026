@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soulcon Tracker 2026</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/font/lucide.min.css" rel="stylesheet">
+    <style>
+        body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+        .lucide { vertical-align: middle; }
+        button { user-select: none; }
+        input[type="text"]::placeholder { color: #cbd5e1; font-weight: normal; }
+        .special-week-glow { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { opacity: 0.8; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const App = () => {
+            const [activeWeek, setActiveWeek] = useState(0);
+            const [data, setData] = useState({});
+            const [loading, setLoading] = useState(true);
+            const todayRef = useRef(null);
+
+            const startDate = new Date(2026, 1, 23); // Február 23
+            const endDate = new Date(2026, 3, 5);   // Április 5
+
+            const baseTasks = [
+                { id: 'mi_atyank', label: 'Mi Atyánk', icon: 'cross' },
+                { id: 'soulcon', label: 'Soulcon olvasmány', icon: 'cross' },
+                { id: 'ige', label: 'Igeolvasás', icon: 'cross' },
+                { id: 'napi_f', label: 'Napi feladat', icon: 'cross' },
+                { id: 'fekvo', label: '40 fekvő', icon: 'activity' },
+                { id: 'mozgas', label: '30p mozgás', icon: 'activity' },
+                { id: 'futas', label: 'Heti 2x futás', icon: 'activity' },
+                { id: 'etel', label: 'Egészséges ételek', icon: 'utensils' },
+                { id: 'ch', label: '15:00 után nincs CH', icon: 'utensils' },
+                { id: 'viz', label: 'Min. 2L víz', icon: 'utensils' },
+                { id: 'alvas', label: '7-8 óra alvás', icon: 'moon' },
+                { id: 'net', label: '22:00 után nincs net', icon: 'smartphone' },
+            ];
+
+            const inputTasks = {
+                4: [
+                    { id: 'fekvo_2p', label: '2 perc fekvőtámasz (db)', placeholder: 'pl. 45' },
+                    { id: 'felules_2p', label: '2 perc felülés (db)', placeholder: 'pl. 50' },
+                    { id: 'utolso_km', label: 'Utolsó km (p:mp)', placeholder: 'pl. 4:20' }
+                ],
+                8: [{ id: 'fekvo_24h', label: '24 óra fekvőtámasz (db)', placeholder: 'összesen' }],
+                10: [{ id: 'felules_24h', label: '24 óra felülés (db)', placeholder: 'összesen' }],
+                12: [{ id: 'gugolas_24h', label: '24 óra guggolás (db)', placeholder: 'összesen' }],
+                19: [{ id: 'plank_time', label: 'Alkartámasz (p:mp)', placeholder: 'pl. 3:15' }],
+                20: [{ id: 'fal_gugolas', label: 'Fal melletti guggolás (db)', placeholder: 'db' }],
+                29: [{ id: 'fekvo_24h_2', label: '24 óra fekvőtámasz (db)', placeholder: 'összesen' }],
+                31: [{ id: 'felules_24h_2', label: '24 óra felülés (db)', placeholder: 'összesen' }],
+                33: [{ id: 'gugolas_24h_2', label: '24 óra guggolás (db)', placeholder: 'összesen' }],
+                38: [
+                    { id: 'fekvo_2p_final', label: '2 perc fekvőtámasz (db)', placeholder: 'pl. 55' },
+                    { id: 'felules_2p_final', label: '2 perc felülés (db)', placeholder: 'pl. 60' },
+                    { id: 'utolso_km_final', label: 'Utolsó km (p:mp)', placeholder: 'pl. 3:55' }
+                ]
+            };
+
+            useEffect(() => {
+                const saved = localStorage.getItem('soulcon_data_2026');
+                if (saved) {
+                    try { setData(JSON.parse(saved)); } catch(e) { console.error(e); }
+                }
+
+                const now = new Date();
+                const diffTime = now - startDate;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays >= 0 && diffDays < 42) {
+                    setActiveWeek(Math.floor(diffDays / 7));
+                } else if (diffDays >= 42) {
+                    setActiveWeek(5);
+                }
+
+                setLoading(false);
+                setTimeout(() => { 
+                    if (window.lucide) window.lucide.createIcons(); 
+                    if (todayRef.current) {
+                        todayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 200);
+            }, []);
+
+            useEffect(() => {
+                if (!loading) localStorage.setItem('soulcon_data_2026', JSON.stringify(data));
+                if (window.lucide) window.lucide.createIcons();
+            }, [data, loading, activeWeek]);
+
+            const toggleTask = (dateKey, taskId) => {
+                setData(prev => ({
+                    ...prev,
+                    [dateKey]: { ...(prev[dateKey] || {}), [taskId]: !prev[dateKey]?.[taskId] }
+                }));
+            };
+
+            const handleInputChange = (dateKey, fieldId, value) => {
+                setData(prev => ({
+                    ...prev,
+                    [dateKey]: { ...(prev[dateKey] || {}), [fieldId]: value }
+                }));
+            };
+
+            const handleExport = () => {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `soulcon_mentes_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+            };
+
+            const handleImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        if (confirm('Biztosan be akarod tölteni? A jelenlegi adatok felülíródnak!')) {
+                            setData(json);
+                        }
+                    } catch (err) { alert('Hiba a beolvasáskor!'); }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            };
+
+            const getDaysInWeek = (weekIdx) => {
+                const days = [];
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + (weekIdx * 7) + i);
+                    if (d <= endDate) days.push(d);
+                }
+                return days;
+            };
+
+            const formatDate = (date) => date.toISOString().split('T')[0];
+
+            if (loading) return <div className="p-10 text-center text-slate-500 font-medium italic">Betöltés...</div>;
+
+            const currentWeekDays = getDaysInWeek(activeWeek);
+            const todayStr = new Date().toDateString();
+
+            // Fejléc típus meghatározása
+            const getHeaderStyle = () => {
+                if (activeWeek === 1 || activeWeek === 4) return "bg-gradient-to-r from-amber-500 to-yellow-600 border-amber-400"; // 2. és 5. hét
+                if (activeWeek === 3) return "bg-gradient-to-r from-red-600 to-orange-700 border-red-500"; // 4. hét
+                return "bg-slate-900 border-slate-700";
+            };
+
+            const getWeekTitle = () => {
+                const weekStr = `${activeWeek + 1}. HÉT / 6`;
+                if (activeWeek === 1 || activeWeek === 4) return `MAXIMUM HÉT (${weekStr})`;
+                if (activeWeek === 3) return `POKOL HETE (${weekStr})`;
+                return weekStr;
+            };
+
+            return (
+                <div className="min-h-screen pb-24">
+                    <header className={`text-white p-4 sticky top-0 z-20 shadow-lg border-b transition-colors duration-500 ${getHeaderStyle()}`}>
+                        <div className="flex justify-between items-center max-w-md mx-auto">
+                            <button onClick={() => setActiveWeek(Math.max(0, activeWeek - 1))} className="p-2 disabled:opacity-20" disabled={activeWeek === 0}>
+                                <i data-lucide="chevron-left" className="w-6 h-6"></i>
+                            </button>
+                            <div className="text-center">
+                                <h1 className="font-black text-xl tracking-tighter uppercase italic text-white">Soulcon 2026</h1>
+                                <p className={`text-[10px] font-black uppercase tracking-[0.15em] ${(activeWeek === 1 || activeWeek === 4 || activeWeek === 3) ? 'special-week-glow' : 'opacity-60'}`}>
+                                    {getWeekTitle()}
+                                </p>
+                            </div>
+                            <button onClick={() => setActiveWeek(Math.min(5, activeWeek + 1))} className="p-2 disabled:opacity-20" disabled={activeWeek === 5}>
+                                <i data-lucide="chevron-right" className="w-6 h-6"></i>
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="max-w-md mx-auto p-4 space-y-6">
+                        <div className="flex gap-3 justify-center bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+                            <button onClick={handleExport} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 py-2 px-4 rounded-xl text-[10px] font-bold text-slate-700 hover:bg-slate-200 transition-colors">
+                                <i data-lucide="download" className="w-4 h-4"></i> MENTÉS
+                            </button>
+                            <label className="flex-1 flex items-center justify-center gap-2 bg-slate-100 py-2 px-4 rounded-xl text-[10px] font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors">
+                                <i data-lucide="upload" className="w-4 h-4"></i> BETÖLTÉS
+                                <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                            </label>
+                        </div>
+
+                        {currentWeekDays.map((date, idx) => {
+                            const dateKey = formatDate(date);
+                            const isToday = todayStr === date.toDateString();
+                            const dayData = data[dateKey] || {};
+                            const dayNumber = Math.floor((date - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                            const completedTasksCount = baseTasks.filter(t => dayData[t.id]).length;
+                            const completion = Math.round((completedTasksCount / baseTasks.length) * 100);
+
+                            return (
+                                <React.Fragment key={dateKey}>
+                                    <div 
+                                        ref={isToday ? todayRef : null}
+                                        className={`bg-white rounded-3xl shadow-sm border transition-all ${isToday ? 'border-blue-500 ring-4 ring-blue-500/10' : 'border-slate-200'}`}
+                                    >
+                                        <div className={`p-4 flex justify-between items-center border-b border-slate-100 ${isToday ? 'bg-blue-50' : 'bg-slate-50'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${isToday ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-600'}`}>
+                                                    {date.getDate()}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 leading-none flex items-center gap-2 text-sm">
+                                                        {date.toLocaleDateString('hu-HU', { weekday: 'long' }).toUpperCase()}
+                                                        {isToday && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-md shadow-sm shadow-blue-300 tracking-wider font-black">MA</span>}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                                        {dayNumber}. NAP • {date.toLocaleDateString('hu-HU', { month: 'long' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={`text-[10px] font-black px-2.5 py-1 rounded-full border-2 ${completion === 100 ? 'bg-green-500 border-green-500 text-white' : 'border-slate-200 text-slate-500'}`}>
+                                                {completion}%
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 space-y-1">
+                                            {inputTasks[dayNumber] && (
+                                                <div className="bg-amber-50 rounded-2xl p-3 mb-2 border border-amber-100 space-y-3">
+                                                    <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
+                                                        <i data-lucide="star" className="w-3 h-3 text-amber-500"></i> Napi eredmények
+                                                    </p>
+                                                    <div className="grid gap-2">
+                                                        {inputTasks[dayNumber].map(input => (
+                                                            <div key={input.id} className="flex flex-col gap-1">
+                                                                <label className="text-[10px] font-bold text-amber-800/60 uppercase ml-1">{input.label}</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder={input.placeholder}
+                                                                    value={dayData[input.id] || ''}
+                                                                    onChange={(e) => handleInputChange(dateKey, input.id, e.target.value)}
+                                                                    className="w-full bg-white border border-amber-200 rounded-xl p-2.5 text-sm font-bold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {baseTasks.map(task => {
+                                                const isDone = dayData[task.id];
+                                                return (
+                                                    <button 
+                                                        key={task.id} 
+                                                        onClick={() => toggleTask(dateKey, task.id)} 
+                                                        className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all border-2 ${isDone ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-transparent text-slate-600 hover:bg-slate-50'}`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDone ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
+                                                                <i data-lucide={task.icon} className="w-4 h-4 text-inherit"></i>
+                                                            </div>
+                                                            <span className={`text-sm font-bold ${isDone ? 'text-white' : 'text-slate-700'}`}>{task.label}</span>
+                                                        </div>
+                                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isDone ? 'bg-white border-white' : 'border-slate-200'}`}>
+                                                            {isDone && <i data-lucide="check" className="w-4 h-4 text-blue-600"></i>}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="h-2 w-full bg-slate-100"><div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${completion}%` }}></div></div>
+                                    </div>
+
+                                    {/* Pokol Hete Beszúrás a 28. nap után (még a 4. hét végén) */}
+                                    {dayNumber === 28 && activeWeek === 3 && (
+                                        <div className="bg-gradient-to-r from-orange-600 to-red-700 p-6 rounded-3xl shadow-lg border border-red-500 my-8 text-white">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="bg-white/20 p-2 rounded-xl">
+                                                    <i data-lucide="flame" className="w-6 h-6 text-white"></i>
+                                                </div>
+                                                <h3 className="font-black text-xl uppercase tracking-tighter">Pokol Hete Összesítő</h3>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Megtett km (séta|futás|kerékpár|elliptikus)</p>
+                                                <div className="relative">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="pl. 120 km" 
+                                                        value={dayData['pokol_hete_km'] || ''}
+                                                        onChange={(e) => handleInputChange(dateKey, 'pokol_hete_km', e.target.value)}
+                                                        className="w-full bg-white/10 border border-white/20 rounded-2xl p-4 text-xl font-black placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                    />
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 font-bold uppercase text-[10px]">KM</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                    </main>
+
+                    <footer className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">SOULCON 2026 • NAPI FEGYELEM</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</body>
+</html>
